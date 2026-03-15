@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+
+# 個人設定・状態ファイル
+kks_voice_studio_state.json
+sbv2_trainer_state.json
+
+# 開発メモ
+CODEBASE_STATE.md
+
+# ローカルPython（setup.batで生成）
+python/
