@@ -338,9 +338,12 @@ class TrainTab(TrainHistoryMixin, TrainImportMixin, TrainPipelineMixin, TrainUIM
             messagebox.showinfo("Info", "実行中のプロセスはありません。")
             return
         try:
-            self.process.terminate()
+            pid = self.process.pid
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(pid)],
+                capture_output=True)
             self.status_var.set("Terminate requested")
-            self._log("[stop] terminate requested\n")
+            self._log("[stop] taskkill /F /T sent\n")
         except Exception as e:
             messagebox.showerror("Stop failed", str(e))
 
