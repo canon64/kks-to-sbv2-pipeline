@@ -13,7 +13,7 @@ echo.
 if exist "%PYTHON_DIR%\python.exe" (
     echo [OK] Python already set up.
     echo.
-    goto :done
+    goto :install_deps
 )
 
 echo Downloading Python (includes tkinter) ...
@@ -61,7 +61,19 @@ if not exist "%PYTHON_DIR%\python.exe" (
 )
 
 echo.
-echo [OK] Setup complete!
+echo [OK] Python setup complete!
+
+:install_deps
+echo Installing dependencies ...
+echo.
+"%PYTHON_DIR%\python.exe" -m pip install --upgrade pip --quiet
+"%PYTHON_DIR%\python.exe" -m pip install UnityPy --quiet
+if !errorlevel! neq 0 (
+    echo [ERROR] pip install failed. Check your internet connection.
+    pause
+    exit /b 1
+)
+echo [OK] Dependencies installed.
 
 :done
 echo Run run_kks_all_in_one_gui.bat to start.
