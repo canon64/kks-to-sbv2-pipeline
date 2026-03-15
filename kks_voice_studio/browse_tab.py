@@ -11,8 +11,8 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
-from kks_constants import VISIBLE_COLS, COMBO_FILTERS, LIKE_FILTERS, INVALID_FS_CHARS
-from browse_state import BrowseStateMixin
+from .kks_constants import VISIBLE_COLS, COMBO_FILTERS, LIKE_FILTERS, INVALID_FS_CHARS
+from .browse_state import BrowseStateMixin
 
 
 def sanitize(value: str, max_len: int = 120) -> str:

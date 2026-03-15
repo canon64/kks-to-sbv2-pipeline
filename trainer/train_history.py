@@ -102,7 +102,7 @@ class TrainHistoryMixin:
             hist[0] = item
         else:
             hist.insert(0, item)
-        from train_tab import _TRAIN_HISTORY_MAX
+        from .tab import _TRAIN_HISTORY_MAX
         self.app_state["history"] = hist[:_TRAIN_HISTORY_MAX]
         self._refresh_hist_listbox()
 

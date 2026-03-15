@@ -14,7 +14,7 @@ try:
 except ImportError:
     UNITYPY_OK = False
 
-from kks_constants import ALL_CHARS
+from .kks_constants import ALL_CHARS
 
 
 def _load_char_display_map(kks_dir: str) -> dict:

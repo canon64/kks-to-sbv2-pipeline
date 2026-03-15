@@ -16,7 +16,7 @@ try:
 except ImportError:
     UNITYPY_OK = False
 
-from kks_constants import TYPE_INFO, LEVEL_NAME, INVALID_FS_CHARS, FILENAME_RE
+from .kks_constants import TYPE_INFO, LEVEL_NAME, INVALID_FS_CHARS, FILENAME_RE
 
 # ── DDL ───────────────────────────────────────────────────────────────────────
 

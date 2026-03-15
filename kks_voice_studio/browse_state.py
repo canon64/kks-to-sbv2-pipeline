@@ -8,8 +8,8 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox
 
-from kks_constants import APP_STATE_PATH, HISTORY_MAX
-from extract_tab import _load_char_display_map
+from .kks_constants import APP_STATE_PATH, HISTORY_MAX
+from .extract_tab import _load_char_display_map
 
 
 class BrowseStateMixin:
