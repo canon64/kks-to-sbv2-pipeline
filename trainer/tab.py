@@ -23,7 +23,7 @@ from .train_ui import TrainUIMixin
 
 _TRAIN_STATE_PATH  = Path(__file__).resolve().with_name("sbv2_trainer_state.json")
 _TRAIN_HISTORY_MAX = 100
-_DEFAULT_SBV2_ROOT = r"D:\F\project_root\ai_tools\SBV2\Style-Bert-VITS2"
+_DEFAULT_SBV2_ROOT = ""
 
 _MODES = ["train_ms_jp_extra", "train_ms", "train", "custom"]
 
