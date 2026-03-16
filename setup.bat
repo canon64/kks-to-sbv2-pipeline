@@ -67,8 +67,8 @@ echo [OK] Python setup complete!
 echo Installing dependencies ...
 echo.
 set PIP_REQUIRE_VIRTUALENV=
-"%PYTHON_DIR%\python.exe" -m pip install --upgrade pip --quiet
-"%PYTHON_DIR%\python.exe" -m pip install UnityPy --quiet
+"%PYTHON_DIR%\python.exe" -m pip install --isolated --upgrade pip --quiet
+"%PYTHON_DIR%\python.exe" -m pip install --isolated UnityPy --quiet
 if !errorlevel! neq 0 (
     echo [ERROR] pip install failed. Check your internet connection.
     pause
