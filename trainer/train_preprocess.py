@@ -178,6 +178,25 @@ class TrainPipelineMixin:
         else:
             self._log("[pretrained] No new files copied.\n")
 
+    # ── SBV2 依存チェック ────────────────────────────────────────────────
+
+    def _check_sbv2_deps(self, py: str, root: str):
+        import subprocess
+        needed = ["librosa", "soundfile"]
+        missing = []
+        for pkg in needed:
+            r = subprocess.run([py, "-c", f"import {pkg}"],
+                               capture_output=True)
+            if r.returncode != 0:
+                missing.append(pkg)
+        if not missing:
+            return
+        self._log(f"[deps] Missing: {', '.join(missing)} → installing...\n")
+        self._run_blocking(
+            [py, "-m", "pip", "install", "--isolated", "-q"] + missing,
+            root, "pip")
+        self._log("[deps] Done.\n")
+
     # ── WAV リサンプル ────────────────────────────────────────────────────
 
     def _resample_if_needed(self, root: str, py: str, wav_dir, target_sr: int):
@@ -236,6 +255,7 @@ class TrainPipelineMixin:
         esd_list    = dataset_dir / "esd.list"
 
         py = self._resolve_python(root)
+        self._check_sbv2_deps(py, root)
 
         tpl_rel  = _MODE_TEMPLATE_CONFIG.get(mode, "configs/config.json")
         template = (Path(root) / tpl_rel).resolve()
