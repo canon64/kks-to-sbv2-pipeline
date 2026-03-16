@@ -371,7 +371,8 @@ class BuildDbTab(tk.Frame):
             else:
                 self._log_queue.put("[DB] KKSフォルダ未指定 → 型列は空のまま構築\n")
 
-            # ── CSVからセリフ辞書を構築 ──
+            # ── セリフ辞書を構築 ──
+            # 優先順位: voice_extract/voice_csv/*.csv → abdata personality_voice アセット
             serif_map = {}
             csv_dir = Path(kks_dir) / "voice_extract" / "voice_csv" if kks_dir else None
             if csv_dir and csv_dir.is_dir():
@@ -386,8 +387,33 @@ class BuildDbTab(tk.Frame):
                     except Exception as e:
                         self._log_queue.put(f"[WARN] CSV読み込みエラー {cp.name}: {e}\n")
                 self._log_queue.put(f"[DB] セリフ辞書: {len(serif_map)}件 ({len(csv_files)}ファイル)\n")
+            elif kks_dir and UNITYPY_OK and (Path(kks_dir) / "abdata" / "h" / "list").is_dir():
+                self._log_queue.put("[DB] AssetBundle から serif 抽出中...\n")
+                h_list = Path(kks_dir) / "abdata" / "h" / "list"
+                count = 0
+                for bp in sorted(h_list.glob("*.unity3d")):
+                    try:
+                        env = UnityPy.load(str(bp))
+                        for key, obj in env.container.items():
+                            if "personality_voice_" not in key:
+                                continue
+                            try:
+                                tree = obj.read_typetree()
+                                for param in tree.get("param", []):
+                                    for d in param.get("data", []):
+                                        for info in d.get("info", []):
+                                            name = info.get("nameFile", "")
+                                            word = info.get("word", "")
+                                            if name and word:
+                                                serif_map[name + ".wav"] = word
+                                                count += 1
+                            except Exception:
+                                pass
+                    except Exception as e:
+                        self._log_queue.put(f"[WARN] {bp.name}: {e}\n")
+                self._log_queue.put(f"[DB] AssetBundle serif: {count}件\n")
             else:
-                self._log_queue.put("[DB] voice_extract/voice_csv が見つからないため serif は空\n")
+                self._log_queue.put("[DB] serif ソースなし → serif は空\n")
 
             voices_rows = []
             total_skip  = 0
