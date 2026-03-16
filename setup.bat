@@ -66,6 +66,7 @@ echo [OK] Python setup complete!
 :install_deps
 echo Installing dependencies ...
 echo.
+set PIP_REQUIRE_VIRTUALENV=
 "%PYTHON_DIR%\python.exe" -m pip install --upgrade pip --quiet
 "%PYTHON_DIR%\python.exe" -m pip install UnityPy --quiet
 if !errorlevel! neq 0 (
