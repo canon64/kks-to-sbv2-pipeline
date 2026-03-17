@@ -186,14 +186,35 @@ class TrainPipelineMixin:
             self._log("[deps] requirements.txt not found. Skipping.\n")
             return
         self._log("[deps] Checking SBV2 dependencies ...\n")
-        # av はビルドが壊れやすいので先にバイナリで入れる（pyannote.audio の依存解決用）
-        self._run_blocking(
-            [py, "-m", "pip", "install", "--isolated", "-q", "--prefer-binary", "av"],
-            root, "pip")
-        self._run_blocking(
-            [py, "-m", "pip", "install", "--isolated", "-q",
-             "--prefer-binary", "-r", str(req)],
-            root, "pip")
+
+        # faster-whisper==0.10.1 は av>=10,<11 を要求するが av==10.0.0 の wheel が存在しない。
+        # そのため requirements.txt から av/faster-whisper の行を除いた一時ファイルを使い、
+        # それぞれをバージョン制約なし・バイナリ優先で先行インストールする。
+        lines = req.read_text(encoding="utf-8").splitlines()
+        filtered = [
+            l for l in lines
+            if not re.match(r"^\s*(av|faster[-_]whisper)\b", l, re.IGNORECASE)
+        ]
+        tmp_req = Path(req.parent) / "_req_filtered_tmp.txt"
+        try:
+            tmp_req.write_text("\n".join(filtered), encoding="utf-8")
+            # av: wheel がある最新版をバイナリで
+            self._run_blocking(
+                [py, "-m", "pip", "install", "--isolated", "-q", "--prefer-binary", "av"],
+                root, "pip")
+            # faster-whisper: バージョン制約を外して新しい版を入れる
+            self._run_blocking(
+                [py, "-m", "pip", "install", "--isolated", "-q", "--prefer-binary",
+                 "faster-whisper"],
+                root, "pip")
+            # 残りの依存パッケージ
+            self._run_blocking(
+                [py, "-m", "pip", "install", "--isolated", "-q",
+                 "--prefer-binary", "-r", str(tmp_req)],
+                root, "pip")
+        finally:
+            tmp_req.unlink(missing_ok=True)
+
         self._log("[deps] Done.\n")
 
     # ── WAV リサンプル ────────────────────────────────────────────────────
