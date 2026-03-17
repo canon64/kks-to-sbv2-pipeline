@@ -186,6 +186,10 @@ class TrainPipelineMixin:
             self._log("[deps] requirements.txt not found. Skipping.\n")
             return
         self._log("[deps] Checking SBV2 dependencies ...\n")
+        # av はビルドが壊れやすいので先にバイナリで入れる（pyannote.audio の依存解決用）
+        self._run_blocking(
+            [py, "-m", "pip", "install", "--isolated", "-q", "--prefer-binary", "av"],
+            root, "pip")
         self._run_blocking(
             [py, "-m", "pip", "install", "--isolated", "-q",
              "--prefer-binary", "-r", str(req)],
