@@ -181,27 +181,14 @@ class TrainPipelineMixin:
     # ── SBV2 依存チェック ────────────────────────────────────────────────
 
     def _check_sbv2_deps(self, py: str, root: str):
-        import subprocess
-        # 代表パッケージで素早くチェック
-        probe = subprocess.run(
-            [py, "-c", "import librosa, soundfile, tqdm"],
-            capture_output=True)
-        if probe.returncode == 0:
-            return  # 全部入っている
-        # 不足あり → requirements.txt で丸ごと揃える
-        req = str((Path(root) / "requirements.txt").resolve())
-        if Path(req).is_file():
-            self._log("[deps] Missing packages detected. Installing from requirements.txt ...\n")
-            self._run_blocking(
-                [py, "-m", "pip", "install", "--isolated", "-q", "-r", req],
-                root, "pip")
-        else:
-            # requirements.txt がなければ個別インストール
-            self._log("[deps] Missing packages detected. Installing librosa soundfile tqdm ...\n")
-            self._run_blocking(
-                [py, "-m", "pip", "install", "--isolated", "-q",
-                 "librosa", "soundfile", "tqdm"],
-                root, "pip")
+        req = Path(root) / "requirements.txt"
+        if not req.is_file():
+            self._log("[deps] requirements.txt not found. Skipping.\n")
+            return
+        self._log("[deps] Checking SBV2 dependencies ...\n")
+        self._run_blocking(
+            [py, "-m", "pip", "install", "--isolated", "-q", "-r", str(req)],
+            root, "pip")
         self._log("[deps] Done.\n")
 
     # ── WAV リサンプル ────────────────────────────────────────────────────
