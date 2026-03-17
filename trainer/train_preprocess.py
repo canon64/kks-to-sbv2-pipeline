@@ -187,7 +187,8 @@ class TrainPipelineMixin:
             return
         self._log("[deps] Checking SBV2 dependencies ...\n")
         self._run_blocking(
-            [py, "-m", "pip", "install", "--isolated", "-q", "-r", str(req)],
+            [py, "-m", "pip", "install", "--isolated", "-q",
+             "--prefer-binary", "-r", str(req)],
             root, "pip")
         self._log("[deps] Done.\n")
 
