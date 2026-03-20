@@ -335,7 +335,7 @@ class BrowseTab(BrowseStateMixin, tk.Frame):
         fn         = sanitize(str(row.get("filename") or f"id_{row.get('id','unknown')}"))
         return Path(tbl) / chara / mode_seg / level_seg / cat_seg / f"{fn}{ext}"
 
-    def _voice_text_row(self, row: dict) -> list:
+    def _voice_text_row(self, row: dict):
         fn = str(row.get("filename") or "").strip()
         if not fn:
             src = str(row.get("wav_path") or "")
@@ -344,7 +344,13 @@ class BrowseTab(BrowseStateMixin, tk.Frame):
             fn += ".wav"
         chara = str(row.get("chara") or "").strip() or "unknown"
         serif = str(row.get("serif") or "")
-        serif = serif.replace("\r\n", "\n").replace("\r", "\n").replace("\n", " ")
+        serif = serif.replace("\r\n", "\n").replace("\r", "\n").replace("\n", " ").strip()
+        if not serif:
+            return None
+        serif = serif.replace("、っ", "、").replace("…っ", "…").replace("搔", "掻")
+        serif = serif.encode("cp932", errors="ignore").decode("cp932", errors="ignore").strip()
+        if not serif:
+            return None
         return [fn, chara, "JP", serif]
 
     def _export(self, all_displayed: bool):
@@ -370,6 +376,7 @@ class BrowseTab(BrowseStateMixin, tk.Frame):
         dest_root.mkdir(parents=True, exist_ok=True)
 
         copied = missing = failed = duplicate_skipped = 0
+        skipped_empty_serif = 0
         voice_text_rows = []
         seen_sources    = set()
         seen_dest_paths = set()
@@ -403,7 +410,11 @@ class BrowseTab(BrowseStateMixin, tk.Frame):
                 copied += 1
                 seen_sources.add(src_norm)
                 seen_dest_paths.add(rel_norm)
-                voice_text_rows.append(self._voice_text_row(row))
+                vt = self._voice_text_row(row)
+                if vt:
+                    voice_text_rows.append(vt)
+                else:
+                    skipped_empty_serif += 1
             except Exception:
                 failed += 1
 
@@ -416,6 +427,8 @@ class BrowseTab(BrowseStateMixin, tk.Frame):
 
         msg = (f"保存完了\n対象行: {len(rows)}\n保存成功: {copied}\n"
                f"重複スキップ: {duplicate_skipped}\nファイルなし: {missing}\n失敗: {failed}")
+        if skipped_empty_serif:
+            msg += f"\nCSV skipped empty serif: {skipped_empty_serif}"
         self._status_var.set(msg.replace("\n", " | "))
         messagebox.showinfo("エクスポート完了", msg)
         os.startfile(dest_root)

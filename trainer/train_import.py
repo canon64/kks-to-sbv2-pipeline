@@ -27,22 +27,66 @@ class TrainImportMixin:
                 continue
         raise UnicodeDecodeError("text", b"", 0, 1, f"Cannot read: {path}")
 
-    def _normalize_esd(self, lines: list) -> list:
+    def _sanitize_serif_text(self, text: str, stats: dict) -> str:
+        txt = str(text).replace("\r", " ").replace("\n", " ").strip()
+        if not txt:
+            return ""
+
+        n = txt.count("、っ")
+        if n:
+            stats["repl_comma_small_tsu"] += n
+            txt = txt.replace("、っ", "、")
+
+        n = txt.count("…っ")
+        if n:
+            stats["repl_ellipsis_small_tsu"] += n
+            txt = txt.replace("…っ", "…")
+
+        n = txt.count("搔")
+        if n:
+            stats["repl_kanji_kaki"] += n
+            txt = txt.replace("搔", "掻")
+
+        # Console/log encoding and preprocess stability:
+        # drop characters that cannot be represented in CP932.
+        safe = txt.encode("cp932", errors="ignore").decode("cp932", errors="ignore")
+        dropped = len(txt) - len(safe)
+        if dropped > 0:
+            stats["drop_non_cp932_chars"] += dropped
+        return safe.strip()
+
+    def _normalize_esd(self, lines: list):
         out = []
+        stats = {
+            "raw_lines": 0,
+            "normalized_lines": 0,
+            "skipped_malformed": 0,
+            "skipped_empty_text": 0,
+            "repl_comma_small_tsu": 0,
+            "repl_ellipsis_small_tsu": 0,
+            "repl_kanji_kaki": 0,
+            "drop_non_cp932_chars": 0,
+        }
         for raw in lines:
+            stats["raw_lines"] += 1
             line = str(raw).strip()
             if not line or line.startswith("#"):
                 continue
             parts = line.split("|", 3)
             if len(parts) < 4:
+                stats["skipped_malformed"] += 1
                 continue
             wav  = Path(parts[0].replace("\ufeff", "").strip()).name
             spk  = parts[1].strip() or "spk0"
             lang = parts[2].strip() or "JP"
-            text = parts[3].replace("\r", " ").replace("\n", " ").strip()
+            text = self._sanitize_serif_text(parts[3], stats)
+            if not text:
+                stats["skipped_empty_text"] += 1
+                continue
             if wav:
                 out.append(f"{wav}|{spk}|{lang}|{text}")
-        return out
+        stats["normalized_lines"] = len(out)
+        return out, stats
 
     def _speakers_in_list(self, list_path) -> set:
         spk = set()
@@ -114,7 +158,7 @@ class TrainImportMixin:
         esd_dst = dataset_dir / "esd.list"
 
         lines = self._read_lines(csv_src)
-        norm  = self._normalize_esd(lines)
+        norm, norm_stats = self._normalize_esd(lines)
         if not norm:
             raise ValueError("CSV の有効行が0件です。")
         esd_dst.write_text("\n".join(norm) + "\n", encoding="utf-8")
@@ -157,4 +201,9 @@ class TrainImportMixin:
         if missing:
             raise FileNotFoundError(
                 f"WAVが不足しています ({len(missing)}件): " + ", ".join(missing[:10]))
-        return {"dataset": str(dataset_dir), "copied": copied, "skipped": skipped}
+        return {
+            "dataset": str(dataset_dir),
+            "copied": copied,
+            "skipped": skipped,
+            "sanitize": norm_stats,
+        }

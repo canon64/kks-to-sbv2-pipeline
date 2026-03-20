@@ -271,6 +271,18 @@ class TrainTab(TrainHistoryMixin, TrainImportMixin, TrainPipelineMixin, TrainUIM
                 self.log_queue.put(("line",
                     f"[import] copied={imported['copied']} "
                     f"skipped={imported['skipped']} → {imported['dataset']}\n"))
+                sanitize = imported.get("sanitize") or {}
+                if sanitize:
+                    self.log_queue.put(("line",
+                        "[import:sanitize] "
+                        f"raw={sanitize.get('raw_lines', 0)} "
+                        f"kept={sanitize.get('normalized_lines', 0)} "
+                        f"drop_empty={sanitize.get('skipped_empty_text', 0)} "
+                        f"drop_malformed={sanitize.get('skipped_malformed', 0)} "
+                        f"fix(??)={sanitize.get('repl_comma_small_tsu', 0)} "
+                        f"fix(??)={sanitize.get('repl_ellipsis_small_tsu', 0)} "
+                        f"fix(???)={sanitize.get('repl_kanji_kaki', 0)} "
+                        f"drop_non_cp932={sanitize.get('drop_non_cp932_chars', 0)}\n"))
         except Exception as e:
             self.after(0, lambda: messagebox.showerror("Import failed", str(e)))
             self.after(0, lambda: self.status_var.set("Ready"))
