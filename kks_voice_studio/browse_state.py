@@ -101,7 +101,7 @@ class BrowseStateMixin:
                     pass
             existing["last"]      = self.app_state.get("last")
             existing["history"]   = self.app_state.get("history", [])
-            existing["char_rules"] = self.app_state.get("char_rules", {})
+            existing["char_rules"] = self._char_rules
             tmp = APP_STATE_PATH.with_suffix(".tmp")
             tmp.write_text(json.dumps(existing, ensure_ascii=False, indent=2),
                            encoding="utf-8")
