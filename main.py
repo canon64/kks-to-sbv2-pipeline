@@ -86,6 +86,9 @@ class KksAllInOneGui(tk.Tk):
         self._tab_train.wav_src_var.set(wav_dir)
         if csv_path:
             self._tab_train.csv_src_var.set(csv_path)
+        last = Path(wav_dir).name
+        if last:
+            self._tab_train.dataset_path_var.set(f"Data/{last}")
 
     def _on_kks_change(self, kks_dir: str):
         wave_dir = str(Path(kks_dir) / "wave")
