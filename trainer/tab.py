@@ -220,6 +220,7 @@ class TrainTab(TrainHistoryMixin, TrainImportMixin, TrainPipelineMixin, TrainUIM
 
     def _build_env(self, cmd):
         env = os.environ.copy()
+        env["PYTHONUTF8"] = "1"
         gpu_sel = self.gpu_var.get().strip()
         if gpu_sel and gpu_sel.casefold() != "auto":
             idx = gpu_sel.split(":", 1)[0].strip()
