@@ -410,16 +410,17 @@ class BrowseTab(BrowseStateMixin, tk.Frame):
             dst.parent.mkdir(parents=True, exist_ok=True)
             try:
                 shutil.copy2(src, dst)
-                copied += 1
-                seen_sources.add(src_norm)
-                seen_dest_paths.add(rel_norm)
-                vt = self._voice_text_row(row)
-                if vt:
-                    voice_text_rows.append(vt)
-                else:
-                    skipped_empty_serif += 1
             except Exception:
                 failed += 1
+                continue
+            copied += 1
+            seen_sources.add(src_norm)
+            seen_dest_paths.add(rel_norm)
+            vt = self._voice_text_row(row)
+            if vt:
+                voice_text_rows.append(vt)
+            else:
+                skipped_empty_serif += 1
 
         vtext_path = None
         if self._save_csv_var.get() and voice_text_rows:
