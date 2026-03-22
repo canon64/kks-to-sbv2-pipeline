@@ -255,6 +255,35 @@ class TrainPipelineMixin:
         shutil.rmtree(tmp, ignore_errors=True)
         self._log("[resample] Done.\n")
 
+    # ── esd.list 文字変換 ────────────────────────────────────────────────
+
+    def _apply_char_rules_to_esd(self, esd_list: Path):
+        try:
+            from kks_voice_studio.kks_constants import APP_STATE_PATH
+            from kks_voice_studio.text_normalizer import normalize
+            state = json.loads(APP_STATE_PATH.read_text("utf-8")) if APP_STATE_PATH.exists() else {}
+            rules = {str(k): str(v) for k, v in state.get("char_rules", {}).items()}
+        except Exception:
+            return
+        if not rules:
+            return
+        lines = esd_list.read_text("utf-8", errors="replace").splitlines()
+        changed = 0
+        new_lines = []
+        for line in lines:
+            parts = line.split("|", 3)
+            if len(parts) == 4:
+                new_serif = normalize(parts[3], rules)
+                if new_serif != parts[3]:
+                    changed += 1
+                parts[3] = new_serif
+                new_lines.append("|".join(parts))
+            else:
+                new_lines.append(line)
+        if changed:
+            esd_list.write_text("\n".join(new_lines), encoding="utf-8")
+            self._log(f"[char_rules] esd.list {changed}行に変換ルールを適用しました\n")
+
     # ── 前処理パイプライン ────────────────────────────────────────────────
 
     def _ensure_preprocessed(self, root: str, force_preprocess: bool = False):
@@ -313,6 +342,7 @@ class TrainPipelineMixin:
         if need_pp:
             if not esd_list.is_file():
                 raise FileNotFoundError(f"esd.list not found: {esd_list}")
+            self._apply_char_rules_to_esd(esd_list)
             pp_cmd = [
                 py, str((Path(root) / "preprocess_text.py").resolve()),
                 "--transcription-path", str(esd_list),
