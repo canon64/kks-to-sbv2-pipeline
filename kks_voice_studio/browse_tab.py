@@ -13,6 +13,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from .kks_constants import VISIBLE_COLS, COMBO_FILTERS, LIKE_FILTERS, INVALID_FS_CHARS
 from .browse_state import BrowseStateMixin
+from .text_normalizer import normalize
 
 
 def sanitize(value: str, max_len: int = 120) -> str:
@@ -28,6 +29,7 @@ class BrowseTab(BrowseStateMixin, tk.Frame):
         # tk.Frame を先に初期化してから Mixin の状態を設定する
         tk.Frame.__init__(self, parent)
         self._on_export_done   = on_export_done
+        self._char_rules       = {}
         self.conn              = None
         self.table_columns     = {}
         self.current_rows      = []
@@ -348,6 +350,7 @@ class BrowseTab(BrowseStateMixin, tk.Frame):
         if not serif:
             return None
         serif = serif.replace("、っ", "、").replace("…っ", "…").replace("搔", "掻")
+        serif = normalize(serif, self._char_rules)
         serif = serif.encode("cp932", errors="ignore").decode("cp932", errors="ignore").strip()
         if not serif:
             return None

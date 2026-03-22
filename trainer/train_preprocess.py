@@ -323,7 +323,15 @@ class TrainPipelineMixin:
             ]
             if use_jp_extra:
                 pp_cmd.append("--use_jp_extra")
-            self._run_blocking(pp_cmd, root, "preprocess_text")
+            try:
+                self._run_blocking(pp_cmd, root, "preprocess_text")
+            except RuntimeError as e:
+                error_log = Path(dataset_path) / "text_error.log"
+                if error_log.is_file():
+                    self.log_queue.put(("line", "\n[text_error.log]\n"))
+                    for line in error_log.read_text("utf-8", errors="replace").splitlines():
+                        self.log_queue.put(("line", line + "\n"))
+                raise
 
         list_wavs     = self._wav_paths_from_lists([train_list, val_list])
         missing_bert  = self._count_missing_aux(list_wavs, ".bert.pt")

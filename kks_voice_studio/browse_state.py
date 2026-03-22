@@ -82,6 +82,10 @@ class BrowseStateMixin:
                 pass
         kks_dir = self.app_state.get("extract", {}).get("kks_dir", "")
         self._char_display_map = _load_char_display_map(kks_dir)
+        self._char_rules = {
+            str(k): str(v)
+            for k, v in self.app_state.get("char_rules", {}).items()
+        }
 
     def set_char_map(self, char_map: dict):
         self._char_display_map = char_map
@@ -95,8 +99,9 @@ class BrowseStateMixin:
                     existing = json.loads(APP_STATE_PATH.read_text("utf-8"))
                 except Exception:
                     pass
-            existing["last"]    = self.app_state.get("last")
-            existing["history"] = self.app_state.get("history", [])
+            existing["last"]      = self.app_state.get("last")
+            existing["history"]   = self.app_state.get("history", [])
+            existing["char_rules"] = self.app_state.get("char_rules", {})
             tmp = APP_STATE_PATH.with_suffix(".tmp")
             tmp.write_text(json.dumps(existing, ensure_ascii=False, indent=2),
                            encoding="utf-8")

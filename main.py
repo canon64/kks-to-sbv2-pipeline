@@ -12,7 +12,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import ttk
 
-from kks_voice_studio import APP_STATE_PATH, ExtractTab, BuildDbTab, BrowseTab
+from kks_voice_studio import APP_STATE_PATH, ExtractTab, BuildDbTab, BrowseTab, CharRulesTab
 from train_tab import TrainTab
 
 
@@ -26,16 +26,18 @@ class KksAllInOneGui(tk.Tk):
         nb = ttk.Notebook(self)
         nb.pack(fill="both", expand=True)
 
-        self._tab_extract = ExtractTab(nb, on_kks_change=self._on_kks_change)
-        self._tab_build   = BuildDbTab(nb, on_build_done=self._on_build_done,
-                                       get_kks_dir=lambda: self._tab_extract._kks_var.get())
-        self._tab_browse  = BrowseTab(nb, on_export_done=self._on_export_done)
-        self._tab_train   = TrainTab(nb)
+        self._tab_extract    = ExtractTab(nb, on_kks_change=self._on_kks_change)
+        self._tab_build      = BuildDbTab(nb, on_build_done=self._on_build_done,
+                                          get_kks_dir=lambda: self._tab_extract._kks_var.get())
+        self._tab_browse     = BrowseTab(nb, on_export_done=self._on_export_done)
+        self._tab_train      = TrainTab(nb)
+        self._tab_char_rules = CharRulesTab(nb, on_rules_changed=self._on_rules_changed)
 
-        nb.add(self._tab_extract, text="  抽出  ")
-        nb.add(self._tab_build,   text="  DB構築  ")
-        nb.add(self._tab_browse,  text="  ブラウズ  ")
-        nb.add(self._tab_train,   text="  SBV2トレーニング  ")
+        nb.add(self._tab_extract,    text="  抽出  ")
+        nb.add(self._tab_build,      text="  DB構築  ")
+        nb.add(self._tab_browse,     text="  ブラウズ  ")
+        nb.add(self._tab_train,      text="  SBV2トレーニング  ")
+        nb.add(self._tab_char_rules, text="  文字変換  ")
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self._load_settings()
@@ -81,6 +83,9 @@ class KksAllInOneGui(tk.Tk):
     def _on_build_done(self, db_path: str):
         self._tab_browse._db_var.set(db_path)
         self._tab_browse._connect()
+
+    def _on_rules_changed(self, rules: dict):
+        self._tab_browse._char_rules = rules
 
     def _on_export_done(self, wav_dir: str, csv_path: str):
         self._tab_train.wav_src_var.set(wav_dir)
