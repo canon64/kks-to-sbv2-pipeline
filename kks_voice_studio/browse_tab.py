@@ -351,9 +351,6 @@ class BrowseTab(BrowseStateMixin, tk.Frame):
             return None
         serif = serif.replace("、っ", "、").replace("…っ", "…").replace("搔", "掻")
         serif = normalize(serif, self._char_rules)
-        serif = serif.encode("cp932", errors="ignore").decode("cp932", errors="ignore").strip()
-        if not serif:
-            return None
         return [fn, chara, "JP", serif]
 
     def _export(self, all_displayed: bool):
