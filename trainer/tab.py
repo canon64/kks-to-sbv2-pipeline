@@ -241,8 +241,10 @@ class TrainTab(TrainHistoryMixin, TrainImportMixin, TrainPipelineMixin, TrainUIM
 
     def _run_blocking(self, cmd, cwd: str, tag: str):
         self.log_queue.put(("line", f"[{tag}] " + " ".join(self._q(str(a)) for a in cmd) + "\n"))
+        env = os.environ.copy()
+        env["PYTHONUTF8"] = "1"
         proc = subprocess.Popen(
-            cmd, cwd=cwd,
+            cmd, cwd=cwd, env=env,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, encoding="utf-8", errors="replace", bufsize=1)
         if proc.stdout:
