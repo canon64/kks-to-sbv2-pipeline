@@ -433,6 +433,6 @@ class BrowseTab(BrowseStateMixin, tk.Frame):
         messagebox.showinfo("エクスポート完了", msg)
         os.startfile(dest_root)
 
-        if self._on_export_done and copied > 0:
+        if self._on_export_done:
             csv_out = str(vtext_path) if (self._save_csv_var.get() and voice_text_rows) else ""
             self._on_export_done(str(dest_root), csv_out)
