@@ -34,6 +34,10 @@ _MODE_SCRIPT = {
 }
 
 
+class _TrainingCancelled(Exception):
+    """Raised when the user cancels preparation or training."""
+
+
 # ── TrainTab ───────────────────────────────────────────────────────────────────
 
 class TrainTab(TrainHistoryMixin, TrainImportMixin, TrainPipelineMixin, TrainUIMixin, tk.Frame):
@@ -60,6 +64,10 @@ class TrainTab(TrainHistoryMixin, TrainImportMixin, TrainPipelineMixin, TrainUIM
         self.gpu_var = tk.StringVar(value="auto")
 
         self.process       = None
+        self.prep_process  = None
+        self._preparing    = False
+        self._cancel_event = threading.Event()
+        self._process_lock = threading.Lock()
         self.log_queue     = queue.Queue()
         self.reader_thread = None
 
@@ -240,27 +248,41 @@ class TrainTab(TrainHistoryMixin, TrainImportMixin, TrainPipelineMixin, TrainUIM
     # ── サブプロセス同期実行 ──────────────────────────────────────────────────
 
     def _run_blocking(self, cmd, cwd: str, tag: str):
+        if self._cancel_event.is_set():
+            raise _TrainingCancelled()
         self.log_queue.put(("line", f"[{tag}] " + " ".join(self._q(str(a)) for a in cmd) + "\n"))
         env = os.environ.copy()
         env["PYTHONUTF8"] = "1"
         proc = subprocess.Popen(
             cmd, cwd=cwd, env=env,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, encoding="utf-8", errors="replace", bufsize=1)
-        if proc.stdout:
-            for line in proc.stdout:
-                self.log_queue.put(("line", line))
-        code = proc.wait()
+            text=True, encoding="utf-8", errors="replace", bufsize=1,
+            creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0))
+        with self._process_lock:
+            self.prep_process = proc
+        try:
+            if proc.stdout:
+                for line in proc.stdout:
+                    self.log_queue.put(("line", line))
+            code = proc.wait()
+        finally:
+            with self._process_lock:
+                if self.prep_process is proc:
+                    self.prep_process = None
         self.log_queue.put(("line", f"[{tag}] exit={code}\n"))
+        if self._cancel_event.is_set():
+            raise _TrainingCancelled()
         if code != 0:
             raise RuntimeError(f"[{tag}] failed (exit {code})")
 
     # ── Start / Stop ─────────────────────────────────────────────────────────
 
     def _start_training(self):
-        if self.process is not None and self.process.poll() is None:
+        if self._preparing or (self.process is not None and self.process.poll() is None):
             messagebox.showwarning("Running", "プロセスが実行中です。")
             return
+        self._cancel_event.clear()
+        self._preparing = True
         self.status_var.set("Preparing…")
         threading.Thread(target=self._start_training_worker, daemon=True).start()
 
@@ -270,6 +292,8 @@ class TrainTab(TrainHistoryMixin, TrainImportMixin, TrainPipelineMixin, TrainUIM
 
         try:
             imported = self._import_dataset(root)
+            if self._cancel_event.is_set():
+                raise _TrainingCancelled()
             if imported:
                 self.log_queue.put(("line",
                     f"[import] copied={imported['copied']} "
@@ -286,7 +310,11 @@ class TrainTab(TrainHistoryMixin, TrainImportMixin, TrainPipelineMixin, TrainUIM
                         f"fix(??)={sanitize.get('repl_ellipsis_small_tsu', 0)} "
                         f"fix(???)={sanitize.get('repl_kanji_kaki', 0)} "
                         f"drop_non_cp932={sanitize.get('drop_non_cp932_chars', 0)}\n"))
+        except _TrainingCancelled:
+            self._finish_cancelled()
+            return
         except Exception as e:
+            self._preparing = False
             self.after(0, lambda: messagebox.showerror("Import failed", str(e)))
             self.after(0, lambda: self.status_var.set("Ready"))
             return
@@ -295,14 +323,26 @@ class TrainTab(TrainHistoryMixin, TrainImportMixin, TrainPipelineMixin, TrainUIM
             try:
                 dataset_path = self._resolve_dataset(root)
                 self._ensure_pretrained_seeds(root, dataset_path)
+                if self._cancel_event.is_set():
+                    raise _TrainingCancelled()
+            except _TrainingCancelled:
+                self._finish_cancelled()
+                return
             except Exception as e:
+                self._preparing = False
                 self.after(0, lambda: messagebox.showerror("Pretrained setup failed", str(e)))
                 self.after(0, lambda: self.status_var.set("Ready"))
                 return
 
             try:
                 self._ensure_preprocessed(root, force_preprocess=bool(imported))
+                if self._cancel_event.is_set():
+                    raise _TrainingCancelled()
+            except _TrainingCancelled:
+                self._finish_cancelled()
+                return
             except Exception as e:
+                self._preparing = False
                 self.after(0, lambda: messagebox.showerror("Preprocess failed", str(e)))
                 self.after(0, lambda: self.status_var.set("Ready"))
                 return
@@ -310,6 +350,7 @@ class TrainTab(TrainHistoryMixin, TrainImportMixin, TrainPipelineMixin, TrainUIM
         try:
             cmd, cwd = self._build_command()
         except Exception as e:
+            self._preparing = False
             self.after(0, lambda: messagebox.showerror("Build command failed", str(e)))
             self.after(0, lambda: self.status_var.set("Ready"))
             return
@@ -317,6 +358,10 @@ class TrainTab(TrainHistoryMixin, TrainImportMixin, TrainPipelineMixin, TrainUIM
         self.after(0, lambda: self._do_launch(cmd, cwd))
 
     def _do_launch(self, cmd, cwd):
+        self._preparing = False
+        if self._cancel_event.is_set():
+            self._finish_cancelled()
+            return
         self._log(f"\n[start] {dt.datetime.now():%Y-%m-%d %H:%M:%S}\n")
         self._log(f"[python] {cmd[0]}\n")
         self._log("[cmd] " + " ".join(self._q(str(a)) for a in cmd) + "\n")
@@ -331,7 +376,8 @@ class TrainTab(TrainHistoryMixin, TrainImportMixin, TrainPipelineMixin, TrainUIM
             self.process = subprocess.Popen(
                 cmd, cwd=cwd, env=run_env,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, encoding="utf-8", errors="replace", bufsize=1)
+                text=True, encoding="utf-8", errors="replace", bufsize=1,
+                creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0))
         except Exception as e:
             self.process = None
             messagebox.showerror("Start failed", str(e))
@@ -349,18 +395,48 @@ class TrainTab(TrainHistoryMixin, TrainImportMixin, TrainPipelineMixin, TrainUIM
         self.status_var.set("Training started")
 
     def _stop_training(self):
-        if self.process is None or self.process.poll() is not None:
+        with self._process_lock:
+            prep_process = self.prep_process
+        running_process = self.process if self.process and self.process.poll() is None else None
+        running_prep = prep_process if prep_process and prep_process.poll() is None else None
+        if not self._preparing and running_process is None and running_prep is None:
             messagebox.showinfo("Info", "実行中のプロセスはありません。")
             return
+        self._cancel_event.set()
+        self.status_var.set("Stopping…")
+        self._log("[stop] cancellation requested\n")
         try:
-            pid = self.process.pid
-            subprocess.run(
-                ["taskkill", "/F", "/T", "/PID", str(pid)],
-                capture_output=True)
-            self.status_var.set("Terminate requested")
-            self._log("[stop] taskkill /F /T sent\n")
+            for proc in (running_prep, running_process):
+                if proc is not None and proc.poll() is None:
+                    self._terminate_process_tree(proc)
+                    self._log(f"[stop] terminated PID {proc.pid}\n")
+            if running_prep is None and running_process is None:
+                self._log("[stop] waiting for the current in-process step to cancel\n")
         except Exception as e:
             messagebox.showerror("Stop failed", str(e))
+
+    @staticmethod
+    def _terminate_process_tree(proc):
+        if proc is None or proc.poll() is not None:
+            return
+        if os.name == "nt":
+            result = subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=10)
+            if result.returncode != 0 and proc.poll() is None:
+                proc.kill()
+        else:
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+
+    def _finish_cancelled(self):
+        self._preparing = False
+        self.log_queue.put(("line", "[stop] cancelled\n"))
+        self.after(0, lambda: self.status_var.set("Stopped"))
 
     # ── ログ ─────────────────────────────────────────────────────────────────
 
@@ -390,7 +466,10 @@ class TrainTab(TrainHistoryMixin, TrainImportMixin, TrainPipelineMixin, TrainUIM
                     self._log(payload)
                 elif kind == "exit":
                     code = int(payload)
-                    self.status_var.set(f"Process exited (code={code})")
+                    if self._cancel_event.is_set():
+                        self.status_var.set("Stopped")
+                    else:
+                        self.status_var.set(f"Process exited (code={code})")
                     self._log(f"\n[exit] code={code}\n")
                     self.process = None
         except queue.Empty:
@@ -475,9 +554,17 @@ class TrainTab(TrainHistoryMixin, TrainImportMixin, TrainPipelineMixin, TrainUIM
 
     def on_app_close(self) -> bool:
         """親ウィンドウの WM_DELETE_WINDOW から呼ぶ。False を返したら閉じをキャンセル。"""
-        if self.process and self.process.poll() is None:
+        with self._process_lock:
+            prep_process = self.prep_process
+        running_process = self.process if self.process and self.process.poll() is None else None
+        running_prep = prep_process if prep_process and prep_process.poll() is None else None
+        if self._preparing or running_process is not None or running_prep is not None:
             if not messagebox.askyesno("Running", "プロセスが実行中です。終了しますか？"):
                 return False
+            self._cancel_event.set()
+            for proc in (running_prep, running_process):
+                if proc is not None and proc.poll() is None:
+                    self._terminate_process_tree(proc)
         self.app_state["last"] = self._snapshot()
         self._write_state()
         return True
